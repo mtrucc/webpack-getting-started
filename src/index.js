@@ -19,7 +19,8 @@ async function LoadPdf(url, wokerUrl) {
   console.log('window.location.origin', window.location.origin);
   pdfJS.GlobalWorkerOptions.workerSrc = wokerUrl;
   const pdf = await pdfJS.getDocument(url).promise;
-  const page = await pdf.getPage(2);
+  
+  const page = await pdf.getPage(1);
   const scale = 4;
   const viewport = page.getViewport({
     scale,
@@ -49,43 +50,44 @@ async function LoadPdf(url, wokerUrl) {
       190 * scale
     );
     const dataURL = canvas.toDataURL('image/png', 1);
-    console.log('dataURL', dataURL)
+    console.log('dataURL', dataURL);
     printList.push(dataURL);
     return dataURL;
+    
   });
 
-  const page2 = await pdf.getPage(2);
-  const viewport2 = page2.getViewport({
-    scale: 2,
-  });
-  const canvas2 = document.createElement('CANVAS');
-  const canvasContext2 = canvas2.getContext('2d');
-  canvas2.height = viewport2.height;
-  canvas2.width = 1060;
+  // const page2 = await pdf.getPage(2);
+  // const viewport2 = page2.getViewport({
+  //   scale: 2,
+  // });
+  // const canvas2 = document.createElement('CANVAS');
+  // const canvasContext2 = canvas2.getContext('2d');
+  // canvas2.height = viewport2.height;
+  // canvas2.width = 1060;
 
-  const renderContext2 = {
-    canvasContext: canvasContext2,
-    viewport: viewport2,
-  };
+  // const renderContext2 = {
+  //   canvasContext: canvasContext2,
+  //   viewport: viewport2,
+  // };
 
-  const operators = await page2.getOperatorList();
+  // const operators = await page2.getOperatorList();
 
-  const rawImgOperator = operators.fnArray
-    .map((f, index) => (f === pdfJS.OPS.paintImageXObject ? index : null))
-    .filter((n) => n !== null);
+  // const rawImgOperator = operators.fnArray
+  //   .map((f, index) => (f === pdfJS.OPS.paintImageXObject ? index : null))
+  //   .filter((n) => n !== null);
 
-  const filename = operators.argsArray[rawImgOperator[1]][0];
+  // const filename = operators.argsArray[rawImgOperator[1]][0];
 
-  console.log('rawImgOperator', rawImgOperator);
+  // console.log('rawImgOperator', rawImgOperator);
 
-  console.log('operators.argsArray', operators.argsArray);
+  // console.log('operators.argsArray', operators.argsArray);
 
-  rawImgOperator.forEach((index) => {
-    const filename = operators.argsArray[index][0];
-    getImage(page2, filename, (data) => {
-      console.log('data', data);
-    });
-  });
+  // rawImgOperator.forEach((index) => {
+  //   const filename = operators.argsArray[index][0];
+  //   getImage(page2, filename, (data) => {
+  //     console.log('data', data);
+  //   });
+  // });
   // console.log('printList', printList)
 
   // page2.objs.get(filename, async (arg) => {
@@ -130,11 +132,28 @@ async function LoadPdf(url, wokerUrl) {
   // });
 
   // PrintImage(printList);
+  return pdf;
+}
+
+async function Run() {
+  let pdf = await LoadPdf(
+    'test.pdf',
+    window.location.origin + '/dist/pdf.worker.js'
+  );
+  let pageNumber = await getPageNumber(pdf);
+  if (pageNumber == 2) {
+    console.log('pageNumber', pageNumber);
+  }
+  console.log('pageNumber', pageNumber);
+}
+
+async function getPageNumber(pdf) {
+  return pdf.numPages;
 }
 
 function getImage(page, filename, callback) {
   page.objs.get(filename, async (arg) => {
-    console.log('arg', arg)
+    console.log('arg', arg);
     const canvas = document.createElement('canvas');
     canvas.width = arg.width;
     canvas.height = arg.height;
@@ -172,17 +191,44 @@ function getImage(page, filename, callback) {
     );
 
     const dataURL = newCanvas.toDataURL('image/png', 1);
-    console.log('dataURL', dataURL)
+    console.log('dataURL', dataURL);
     // printList.push(dataURL);
   });
 }
 
-LoadPdf('test.pdf', window.location.origin + '/dist/pdf.worker.js');
+// LoadPdf('test.pdf', window.location.origin + '/dist/pdf.worker.js');
+Run();
 
 let utils = new Utils('errorMessage');
+utils.loadImageToCanvas('test2.png', 'canvasInput');
 utils.loadOpenCv(() => {
-  console.log('testOpenCv')
+  let src = cv.imread('canvasInput');
+  let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
+  let lines = new cv.Mat();
+  let color = new cv.Scalar(255, 0, 0);
+  cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY, 0);
+  cv.Canny(src, src, 50, 200, 3);
+  // You can try more different parameters
+  cv.HoughLinesP(src, lines, 5, Math.PI / 360, 1000, 100, 0);
+  // draw lines
+  for (let i = 0; i < lines.rows; ++i) {
+    let startPoint = new cv.Point(
+      lines.data32S[i * 4],
+      lines.data32S[i * 4 + 1]
+    );
+    let endPoint = new cv.Point(
+      lines.data32S[i * 4 + 2],
+      lines.data32S[i * 4 + 3]
+    );
+    console.log('startPoint, endPoint', startPoint, endPoint);
+    cv.line(dst, startPoint, endPoint, color);
+  }
+  cv.imshow('canvasOutput', dst);
+  src.delete();
+  dst.delete();
+  lines.delete();
 });
 
 window.LoadPdf = LoadPdf;
 window.PrintImage = PrintImage;
+window.getPageNumber = getPageNumber;
