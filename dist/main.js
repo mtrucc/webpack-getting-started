@@ -492,7 +492,7 @@ async function LoadPdf(url, wokerUrl) {
   console.log('window.location.origin', window.location.origin);
   pdfJS.GlobalWorkerOptions.workerSrc = wokerUrl;
   const pdf = await pdfJS.getDocument(url).promise;
-  
+
   const page = await pdf.getPage(1);
   const scale = 4;
   const viewport = page.getViewport({
@@ -526,7 +526,6 @@ async function LoadPdf(url, wokerUrl) {
     console.log('dataURL', dataURL);
     printList.push(dataURL);
     return dataURL;
-    
   });
 
   // const page2 = await pdf.getPage(2);
@@ -670,36 +669,53 @@ function getImage(page, filename, callback) {
 }
 
 // LoadPdf('test.pdf', window.location.origin + '/dist/pdf.worker.js');
-Run();
+// Run();
 
 let utils = new _utils__WEBPACK_IMPORTED_MODULE_0__/* .Utils */ .c('errorMessage');
-utils.loadImageToCanvas('test2.png', 'canvasInput');
+utils.loadImageToCanvas('test1.png', 'canvasInput');
 utils.loadOpenCv(() => {
   let src = cv.imread('canvasInput');
   let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
   let lines = new cv.Mat();
   let color = new cv.Scalar(255, 0, 0);
-  cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY, 0);
-  cv.Canny(src, src, 50, 200, 3);
+  let low = new cv.Mat(src.rows, src.cols, src.type(), [200, 200, 200, 0]);
+  let high = new cv.Mat(src.rows, src.cols, src.type(), [240, 240, 240, 255]);
+  cv.inRange(src, low, high, dst);
+  cv.imshow('canvasOutput', dst);
   // You can try more different parameters
-  cv.HoughLinesP(src, lines, 5, Math.PI / 360, 1000, 100, 0);
-  // draw lines
-  for (let i = 0; i < lines.rows; ++i) {
+  
+  let src2 = cv.imread('canvasOutput');
+  let dst2 = cv.Mat.zeros(src2.rows, src2.cols, cv.CV_8UC3);
+  let lines2 = new cv.Mat();
+  let color2 = new cv.Scalar(255, 0, 0);
+
+  cv.cvtColor(src2, src2, cv.COLOR_RGBA2GRAY, 0);
+  cv.Canny(src2, src2, 50, 200, 3);
+
+  // You can try more different parameters
+  cv.HoughLinesP(src2, lines2, 1, Math.PI / 180, 300, 100, 0);
+  // draw lines2
+  for (let i = 0; i < lines2.rows; ++i) {
     let startPoint = new cv.Point(
-      lines.data32S[i * 4],
-      lines.data32S[i * 4 + 1]
+      lines2.data32S[i * 4],
+      lines2.data32S[i * 4 + 1]
     );
     let endPoint = new cv.Point(
-      lines.data32S[i * 4 + 2],
-      lines.data32S[i * 4 + 3]
+      lines2.data32S[i * 4 + 2],
+      lines2.data32S[i * 4 + 3]
     );
     console.log('startPoint, endPoint', startPoint, endPoint);
-    cv.line(dst, startPoint, endPoint, color);
+    cv.line(dst2, startPoint, endPoint, color2, 2);
   }
-  cv.imshow('canvasOutput', dst);
+  cv.imshow('canvasOutput2', dst2);
   src.delete();
   dst.delete();
   lines.delete();
+  low.delete();
+  high.delete();
+  src2.delete();
+  dst2.delete();
+  lines2.delete();
 });
 
 window.LoadPdf = LoadPdf;

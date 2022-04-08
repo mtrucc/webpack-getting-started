@@ -19,7 +19,7 @@ async function LoadPdf(url, wokerUrl) {
   console.log('window.location.origin', window.location.origin);
   pdfJS.GlobalWorkerOptions.workerSrc = wokerUrl;
   const pdf = await pdfJS.getDocument(url).promise;
-  
+
   const page = await pdf.getPage(1);
   const scale = 4;
   const viewport = page.getViewport({
@@ -53,7 +53,6 @@ async function LoadPdf(url, wokerUrl) {
     console.log('dataURL', dataURL);
     printList.push(dataURL);
     return dataURL;
-    
   });
 
   // const page2 = await pdf.getPage(2);
@@ -197,20 +196,26 @@ function getImage(page, filename, callback) {
 }
 
 // LoadPdf('test.pdf', window.location.origin + '/dist/pdf.worker.js');
-Run();
+// Run();
 
 let utils = new Utils('errorMessage');
-utils.loadImageToCanvas('test2.png', 'canvasInput');
+utils.loadImageToCanvas('test1.png', 'canvasInput');
 utils.loadOpenCv(() => {
   let src = cv.imread('canvasInput');
   let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
   let lines = new cv.Mat();
   let color = new cv.Scalar(255, 0, 0);
+  let low = new cv.Mat(src.rows, src.cols, src.type(), [200, 200, 200, 0]);
+  let high = new cv.Mat(src.rows, src.cols, src.type(), [240, 240, 240, 255]);
+  // You can try more different parameters
+  // cv.inRange(src, low, high, dst);
+  
   cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY, 0);
   cv.Canny(src, src, 50, 200, 3);
-  // You can try more different parameters
-  cv.HoughLinesP(src, lines, 5, Math.PI / 360, 1000, 100, 0);
-  // draw lines
+
+  // // You can try more different parameters
+  cv.HoughLinesP(src, lines, 5, Math.PI / 180, 100, 100, 0);
+  // // draw lines
   for (let i = 0; i < lines.rows; ++i) {
     let startPoint = new cv.Point(
       lines.data32S[i * 4],
@@ -227,6 +232,8 @@ utils.loadOpenCv(() => {
   src.delete();
   dst.delete();
   lines.delete();
+  low.delete();
+  high.delete();
 });
 
 window.LoadPdf = LoadPdf;
