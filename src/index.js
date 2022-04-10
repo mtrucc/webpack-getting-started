@@ -108,6 +108,7 @@ async function Run() {
   if (pageNumber == 1) {
     console.log('pageNumber', pageNumber);
   } else {
+    getPage1(pdf);
   }
   console.log('pageNumber', pageNumber);
 }
@@ -116,7 +117,7 @@ async function getPageNumber(pdf) {
   return pdf.numPages;
 }
 
-async function getPage1(canvas) {
+async function getPage1(pdf) {
   const page = await pdf.getPage(1);
   const scale = 4;
   const viewport = page.getViewport({
@@ -126,13 +127,22 @@ async function getPage1(canvas) {
   const canvasContext = canvas.getContext('2d');
   canvas.height = viewport.height;
   canvas.width = viewport.width;
+  canvas.id = 'canvasInput';
+  document.body.appendChild(canvas);
   const renderContext = {
     canvasContext,
     viewport,
   };
   await page.render(renderContext).promise.then((data) => {
+    const newCanvas = document.createElement('canvas');
+    newCanvas.width = 530 * scale;
+    newCanvas.height = 200 * scale;
+    newCanvas.id = 'canvasInput';
+    // newCanvas.style.display = 'none'
+    // document.body.appendChild(newCanvas)
+
     let utils = new Utils('errorMessage');
-    utils.loadImageToCanvas('test1.png', 'canvasInput');
+    // utils.loadImageToCanvas('test1.png', 'canvasInput');
     utils.loadOpenCv(() => {
       let src = cv.imread('canvasInput');
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
@@ -192,6 +202,23 @@ async function getPage1(canvas) {
       lines.delete();
       low.delete();
       high.delete();
+
+      const newCanvasContext = newCanvas.getContext('2d');
+      newCanvasContext.drawImage(
+        canvas,
+        ponintListXMin,
+        ponintListXMax,
+        ponintListYMin,
+        ponintListYMax,
+        0,
+        0,
+        ponintListXMax - ponintListXMin,
+        ponintListYMax - ponintListYMin
+      );
+      const dataURL = newCanvas.toDataURL('image/png', 1);
+      console.log('dataURL', dataURL);
+      // printList.push(dataURL);
+      return dataURL;
     });
   });
 }
@@ -242,7 +269,9 @@ function getImage(page, filename, callback) {
 }
 
 // LoadPdf('test.pdf', window.location.origin + '/dist/pdf.worker.js');
-// Run();
+Run();
+
+
 
 window.LoadPdf = LoadPdf;
 window.PrintImage = PrintImage;

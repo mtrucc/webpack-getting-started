@@ -493,41 +493,6 @@ async function LoadPdf(url, wokerUrl) {
   pdfJS.GlobalWorkerOptions.workerSrc = wokerUrl;
   const pdf = await pdfJS.getDocument(url).promise;
 
-  const page = await pdf.getPage(1);
-  const scale = 4;
-  const viewport = page.getViewport({
-    scale,
-  });
-  const canvas = document.createElement('CANVAS');
-  const canvasContext = canvas.getContext('2d');
-  canvas.height = viewport.height;
-  canvas.width = viewport.width;
-  const renderContext = {
-    canvasContext,
-    viewport,
-  };
-  await page.render(renderContext).promise.then((data) => {
-    const newCanvas = document.createElement('canvas');
-    newCanvas.width = 530 * scale;
-    newCanvas.height = 200 * scale;
-    const newCanvasContext = newCanvas.getContext('2d');
-    newCanvasContext.drawImage(
-      canvas,
-      20 * scale,
-      210 * scale,
-      550 * scale,
-      190 * scale,
-      0,
-      0,
-      530 * scale,
-      190 * scale
-    );
-    const dataURL = canvas.toDataURL('image/png', 1);
-    console.log('dataURL', dataURL);
-    printList.push(dataURL);
-    return dataURL;
-  });
-
   // const page2 = await pdf.getPage(2);
   // const viewport2 = page2.getViewport({
   //   scale: 2,
@@ -613,14 +578,122 @@ async function Run() {
     window.location.origin + '/dist/pdf.worker.js'
   );
   let pageNumber = await getPageNumber(pdf);
-  if (pageNumber == 2) {
+  if (pageNumber == 1) {
     console.log('pageNumber', pageNumber);
+  } else {
+    getPage1(pdf);
   }
   console.log('pageNumber', pageNumber);
 }
 
 async function getPageNumber(pdf) {
   return pdf.numPages;
+}
+
+async function getPage1(pdf) {
+  const page = await pdf.getPage(1);
+  const scale = 4;
+  const viewport = page.getViewport({
+    scale,
+  });
+  const canvas = document.createElement('CANVAS');
+  const canvasContext = canvas.getContext('2d');
+  canvas.height = viewport.height;
+  canvas.width = viewport.width;
+  canvas.id = 'canvasInput';
+  document.body.appendChild(canvas);
+  const renderContext = {
+    canvasContext,
+    viewport,
+  };
+  await page.render(renderContext).promise.then((data) => {
+    const newCanvas = document.createElement('canvas');
+    newCanvas.width = 530 * scale;
+    newCanvas.height = 200 * scale;
+    newCanvas.id = 'canvasInput';
+    // newCanvas.style.display = 'none'
+    // document.body.appendChild(newCanvas)
+
+    let utils = new _utils__WEBPACK_IMPORTED_MODULE_0__/* .Utils */ .c('errorMessage');
+    // utils.loadImageToCanvas('test1.png', 'canvasInput');
+    utils.loadOpenCv(() => {
+      let src = cv.imread('canvasInput');
+      let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
+      let lines = new cv.Mat();
+      let color = new cv.Scalar(255, 0, 0);
+      let low = new cv.Mat(src.rows, src.cols, src.type(), [200, 200, 200, 0]);
+      let high = new cv.Mat(
+        src.rows,
+        src.cols,
+        src.type(),
+        [240, 240, 240, 255]
+      );
+      // You can try more different parameters
+      // cv.inRange(src, low, high, dst);
+      cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY, 0);
+      cv.Canny(src, src, 50, 200, 3);
+
+      // // You can try more different parameters
+      cv.HoughLinesP(src, lines, 5, Math.PI / 180, 100, 100, 0);
+      // // draw l  ines
+      let ponintList = [];
+      for (let i = 0; i < lines.rows; ++i) {
+        let startPoint = new cv.Point(
+          lines.data32S[i * 4],
+          lines.data32S[i * 4 + 1]
+        );
+        let endPoint = new cv.Point(
+          lines.data32S[i * 4 + 2],
+          lines.data32S[i * 4 + 3]
+        );
+        console.log('startPoint, endPoint', startPoint, endPoint);
+        ponintList.push(startPoint);
+        ponintList.push(endPoint);
+        cv.line(dst, startPoint, endPoint, color);
+      }
+
+      const ponintListX = ponintList.map((item) => item.x);
+      const ponintListXMin = Math.min(...ponintListX);
+      const ponintListXMax = Math.max(...ponintListX);
+      const ponintListY = ponintList.map((item) => item.y);
+      const ponintListYMin = Math.min(...ponintListY);
+      const ponintListYMax = Math.max(...ponintListY);
+
+      console.log(
+        'ponintListXMin, ponintListXMax',
+        ponintListXMin,
+        ponintListXMax
+      );
+      console.log(
+        'ponintListYMin, ponintListYMax',
+        ponintListYMin,
+        ponintListYMax
+      );
+      cv.imshow('canvasOutput', dst);
+      src.delete();
+      dst.delete();
+      lines.delete();
+      low.delete();
+      high.delete();
+
+      const newCanvasContext = newCanvas.getContext('2d');
+      newCanvasContext.drawImage(
+        canvas,
+        ponintListXMin,
+        ponintListXMax,
+        ponintListYMin,
+        ponintListYMax,
+        0,
+        0,
+        ponintListXMax - ponintListXMin,
+        ponintListYMax - ponintListYMin
+      );
+      const dataURL = newCanvas.toDataURL('image/png', 1);
+      console.log('dataURL', dataURL);
+      // printList.push(dataURL);
+      return dataURL;
+    });
+  });
 }
 
 function getImage(page, filename, callback) {
@@ -669,57 +742,9 @@ function getImage(page, filename, callback) {
 }
 
 // LoadPdf('test.pdf', window.location.origin + '/dist/pdf.worker.js');
-// Run();
+Run();
 
-let utils = new _utils__WEBPACK_IMPORTED_MODULE_0__/* .Utils */ .c('errorMessage');
-utils.loadImageToCanvas('test1.png', 'canvasInput');
-utils.loadOpenCv(() => {
-  let src = cv.imread('canvasInput');
-  let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
-  let lines = new cv.Mat();
-  let color = new cv.Scalar(255, 0, 0);
-  let low = new cv.Mat(src.rows, src.cols, src.type(), [200, 200, 200, 0]);
-  let high = new cv.Mat(src.rows, src.cols, src.type(), [240, 240, 240, 255]);
-  // You can try more different parameters
-  // cv.inRange(src, low, high, dst);
-  cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY, 0);
-  cv.Canny(src, src, 50, 200, 3);
 
-  // // You can try more different parameters
-  cv.HoughLinesP(src, lines, 5, Math.PI / 180, 100, 100, 0);
-  // // draw l  ines
-  let ponintList = [];
-  for (let i = 0; i < lines.rows; ++i) {
-    let startPoint = new cv.Point(
-      lines.data32S[i * 4],
-      lines.data32S[i * 4 + 1]
-    );
-    let endPoint = new cv.Point(
-      lines.data32S[i * 4 + 2],
-      lines.data32S[i * 4 + 3]
-    );
-    console.log('startPoint, endPoint', startPoint, endPoint);
-    ponintList.push(startPoint);
-    ponintList.push(endPoint);
-    cv.line(dst, startPoint, endPoint, color);
-  }
-
-  const ponintListX = ponintList.map((item) => item.x);
-  const ponintListXMin = Math.min(...ponintListX);
-  const ponintListXMax = Math.max(...ponintListX);
-  const ponintListY = ponintList.map((item) => item.y);
-  const ponintListYMin = Math.min(...ponintListY);
-  const ponintListYMax = Math.max(...ponintListY);
-
-  console.log('ponintListXMin, ponintListXMax', ponintListXMin, ponintListXMax);
-  console.log('ponintListYMin, ponintListYMax', ponintListYMin, ponintListYMax);
-  cv.imshow('canvasOutput', dst);
-  src.delete();
-  dst.delete();
-  lines.delete();
-  low.delete();
-  high.delete();
-});
 
 window.LoadPdf = LoadPdf;
 window.PrintImage = PrintImage;
