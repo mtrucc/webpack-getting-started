@@ -680,42 +680,45 @@ utils.loadOpenCv(() => {
   let color = new cv.Scalar(255, 0, 0);
   let low = new cv.Mat(src.rows, src.cols, src.type(), [200, 200, 200, 0]);
   let high = new cv.Mat(src.rows, src.cols, src.type(), [240, 240, 240, 255]);
-  cv.inRange(src, low, high, dst);
-  cv.imshow('canvasOutput', dst);
   // You can try more different parameters
-  
-  let src2 = cv.imread('canvasOutput');
-  let dst2 = cv.Mat.zeros(src2.rows, src2.cols, cv.CV_8UC3);
-  let lines2 = new cv.Mat();
-  let color2 = new cv.Scalar(255, 0, 0);
+  // cv.inRange(src, low, high, dst);
+  cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY, 0);
+  cv.Canny(src, src, 50, 200, 3);
 
-  cv.cvtColor(src2, src2, cv.COLOR_RGBA2GRAY, 0);
-  cv.Canny(src2, src2, 50, 200, 3);
-
-  // You can try more different parameters
-  cv.HoughLinesP(src2, lines2, 1, Math.PI / 180, 300, 100, 0);
-  // draw lines2
-  for (let i = 0; i < lines2.rows; ++i) {
+  // // You can try more different parameters
+  cv.HoughLinesP(src, lines, 5, Math.PI / 180, 100, 100, 0);
+  // // draw l  ines
+  let ponintList = [];
+  for (let i = 0; i < lines.rows; ++i) {
     let startPoint = new cv.Point(
-      lines2.data32S[i * 4],
-      lines2.data32S[i * 4 + 1]
+      lines.data32S[i * 4],
+      lines.data32S[i * 4 + 1]
     );
     let endPoint = new cv.Point(
-      lines2.data32S[i * 4 + 2],
-      lines2.data32S[i * 4 + 3]
+      lines.data32S[i * 4 + 2],
+      lines.data32S[i * 4 + 3]
     );
     console.log('startPoint, endPoint', startPoint, endPoint);
-    cv.line(dst2, startPoint, endPoint, color2, 2);
+    ponintList.push(startPoint);
+    ponintList.push(endPoint);
+    cv.line(dst, startPoint, endPoint, color);
   }
-  cv.imshow('canvasOutput2', dst2);
+
+  const ponintListX = ponintList.map((item) => item.x);
+  const ponintListXMin = Math.min(...ponintListX);
+  const ponintListXMax = Math.max(...ponintListX);
+  const ponintListY = ponintList.map((item) => item.y);
+  const ponintListYMin = Math.min(...ponintListY);
+  const ponintListYMax = Math.max(...ponintListY);
+
+  console.log('ponintListXMin, ponintListXMax', ponintListXMin, ponintListXMax);
+  console.log('ponintListYMin, ponintListYMax', ponintListYMin, ponintListYMax);
+  cv.imshow('canvasOutput', dst);
   src.delete();
   dst.delete();
   lines.delete();
   low.delete();
   high.delete();
-  src2.delete();
-  dst2.delete();
-  lines2.delete();
 });
 
 window.LoadPdf = LoadPdf;
