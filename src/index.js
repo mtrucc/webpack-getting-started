@@ -108,6 +108,9 @@ async function getPage1(pdf) {
     canvasContext,
     viewport,
   };
+  page.getTextContent().then((textContent) => {
+    console.log('textContent', textContent);
+  });
 
   const dataURL = await new Promise((resolve, reject) => {
     page.render(renderContext).promise.then((data) => {
@@ -218,30 +221,32 @@ async function getPage1(pdf) {
       const newCanvasContext = newCanvas.getContext('2d');
       if (
         ponintListXMax - ponintListXMin > 1500 &&
-        ponintListYMax - ponintListYMin > 200
+        ponintListYMax - ponintListYMin > 200 &&
+        ponintListYMax - ponintListYMin < 800
       ) {
         newCanvasContext.drawImage(
           canvas,
           ponintListXMin,
-          ponintListYMin,
+          ponintListYMin - 80 * scale,
           ponintListXMax - ponintListXMin,
-          ponintListYMax - ponintListYMin,
+          ponintListYMax - ponintListYMin + 80 * scale,
           0,
           0,
           ponintListXMax - ponintListXMin,
-          ponintListYMax - ponintListYMin
+          ponintListYMax - ponintListYMin + 80 * scale
         );
+        console.log('1111', 1111);
       } else {
         newCanvasContext.drawImage(
           canvas,
           20 * scale,
           210 * scale,
           550 * scale,
-          190 * scale,
+          160 * scale,
           0,
           0,
           530 * scale,
-          190 * scale
+          160 * scale
         );
       }
 
@@ -322,29 +327,29 @@ async function getPage3(pdf) {
   return dataURL;
 }
 
-// async function Run() {
-//   // 加载对应的PDF文件
-//   let { pdf, pdfJS, pageNumber } = await LoadPdf(
-//     'test2.pdf',
-//     window.location.origin + '/dist/pdf.worker.js'
-//   );
-//   // 获取页码
-//   console.log('pageNumber', pageNumber);
-//   if (pageNumber == 1) {
-//     const page2Data = await getPage2(pdf, pdfJS, 1);
-//     console.log('page2Data', page2Data);
-//     const page3Data = await getPage3(pdf);
-//     console.log('page3Data', page3Data);
-//     PrintImage([page2Data, page3Data]);
-//   } else {
-//     const page1Data = await getPage1(pdf, pdfJS);
-//     console.log('page1Data', page1Data);
-//     const page2Data = await getPage2(pdf, pdfJS, 2);
-//     console.log('page2Data', page2Data);
-//     PrintImage([page2Data, page1Data]);
-//   }
-// }
-// Run();
+async function Run() {
+  // 加载对应的PDF文件
+  let { pdf, pdfJS, pageNumber } = await LoadPdf(
+    'error1.pdf',
+    window.location.origin + '/dist/pdf.worker.js'
+  );
+  // 获取页码
+  console.log('pageNumber', pageNumber);
+  if (pageNumber == 1) {
+    const page2Data = await getPage2(pdf, pdfJS, 1);
+    console.log('page2Data', page2Data);
+    const page3Data = await getPage3(pdf);
+    console.log('page3Data', page3Data);
+    // PrintImage([page2Data, page3Data]);
+  } else {
+    const page1Data = await getPage1(pdf, pdfJS);
+    console.log('page1Data', page1Data);
+    const page2Data = await getPage2(pdf, pdfJS, 2);
+    console.log('page2Data', page2Data);
+    // PrintImage([page2Data, page1Data]);
+  }
+}
+Run();
 
 window.LoadPdf = LoadPdf;
 window.PrintImage = PrintImage;
