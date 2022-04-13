@@ -12,7 +12,7 @@ const PrintImage = async (array) => {
   }
 };
 
-async function LoadPdf(url, wokerUrl, callback) {
+async function LoadPdf(url, wokerUrl) {
   console.log('url', url);
   let printList = [];
   var pdfJS = window['pdfjs-dist/build/pdf'];
@@ -329,24 +329,29 @@ async function getPage3(pdf) {
 
 async function Run() {
   // 加载对应的PDF文件
-  let { pdf, pdfJS, pageNumber } = await LoadPdf(
-    'error1.pdf',
-    window.location.origin + '/dist/pdf.worker.js'
-  );
-  // 获取页码
-  console.log('pageNumber', pageNumber);
-  if (pageNumber == 1) {
-    const page2Data = await getPage2(pdf, pdfJS, 1);
-    console.log('page2Data', page2Data);
-    const page3Data = await getPage3(pdf);
-    console.log('page3Data', page3Data);
-    // PrintImage([page2Data, page3Data]);
-  } else {
-    const page1Data = await getPage1(pdf, pdfJS);
-    console.log('page1Data', page1Data);
-    const page2Data = await getPage2(pdf, pdfJS, 2);
-    console.log('page2Data', page2Data);
-    // PrintImage([page2Data, page1Data]);
+  try {
+    let { pdf, pdfJS, pageNumber } = await LoadPdf(
+      'look1.pdf',
+      window.location.origin + '/dist/pdf.worker.js'
+    );
+    // 获取页码
+    console.log('pageNumber', pageNumber);
+    if (pageNumber == 1) {
+      const page2Data = await getPage2(pdf, pdfJS, 1);
+      console.log('page2Data', page2Data);
+      const page3Data = await getPage3(pdf);
+      console.log('page3Data', page3Data);
+      PrintImage([page2Data, page3Data]);
+    } else {
+      const page1Data = await getPage1(pdf, pdfJS);
+      console.log('page1Data', page1Data);
+      const page2Data = await getPage2(pdf, pdfJS, 2);
+      console.log('page2Data', page2Data);
+      PrintImage([page2Data, page1Data]);
+    }
+  } catch (error) {
+    console.log("PDF文件加载失败")
+    // 这儿执行你要执行的代码 针对123
   }
 }
 Run();
