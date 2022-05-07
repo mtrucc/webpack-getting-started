@@ -327,11 +327,39 @@ async function getPage3(pdf) {
   return dataURL;
 }
 
-async function Run() {
-  // 加载对应的PDF文件
+function previewFile() {
+  const input = document.querySelector('input');
+
+  input.addEventListener('change', () => {
+    // const preview = document.querySelector('img');
+    const file = document.querySelector('input[type=file]').files[0];
+    const reader = new FileReader();
+
+    reader.addEventListener(
+      'load',
+      (e) => {
+        // convert image file to base64 string
+        // preview.src = reader.result;
+        var myData = new Uint8Array(e.target.result);
+        var docInitParams = { data: myData };
+        console.log('reader.result', docInitParams);
+        loadFromFile(docInitParams);
+      },
+      false
+    );
+
+    if (file) {
+      reader.readAsArrayBuffer(file);
+    }
+  });
+}
+
+previewFile();
+async function loadFromFile(url) {
+  // // 加载对应的PDF文件
   try {
     let { pdf, pdfJS, pageNumber } = await LoadPdf(
-      'look1.pdf',
+      url,
       window.location.origin + '/dist/pdf.worker.js'
     );
     // 获取页码
@@ -350,11 +378,38 @@ async function Run() {
       PrintImage([page2Data, page1Data]);
     }
   } catch (error) {
-    console.log("PDF文件加载失败")
+    console.log('PDF文件加载失败');
     // 这儿执行你要执行的代码 针对123
   }
 }
-Run();
+// async function Run() {
+//   // // 加载对应的PDF文件
+//   try {
+//     let { pdf, pdfJS, pageNumber } = await LoadPdf(
+//       'look1.pdf',
+//       window.location.origin + '/dist/pdf.worker.js'
+//     );
+//     // 获取页码
+//     console.log('pageNumber', pageNumber);
+//     if (pageNumber == 1) {
+//       const page2Data = await getPage2(pdf, pdfJS, 1);
+//       console.log('page2Data', page2Data);
+//       const page3Data = await getPage3(pdf);
+//       console.log('page3Data', page3Data);
+//       PrintImage([page2Data, page3Data]);
+//     } else {
+//       const page1Data = await getPage1(pdf, pdfJS);
+//       console.log('page1Data', page1Data);
+//       const page2Data = await getPage2(pdf, pdfJS, 2);
+//       console.log('page2Data', page2Data);
+//       PrintImage([page2Data, page1Data]);
+//     }
+//   } catch (error) {
+//     console.log('PDF文件加载失败');
+//     // 这儿执行你要执行的代码 针对123
+//   }
+// }
+// Run();
 
 window.LoadPdf = LoadPdf;
 window.PrintImage = PrintImage;
