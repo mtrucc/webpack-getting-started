@@ -44,7 +44,11 @@ async function LoadPdf(url, wokerUrl) {
 
 function getImage(page, filename) {
   return new Promise((resolve, reject) => {
+    let timeout = setTimeout(() => {
+      reject && reject('timeout');
+    }, 1000);
     page.objs.get(filename, async (arg) => {
+      timeout && clearTimeout(timeout);
       const { width, height } = arg;
       // console.log('arg', arg)
       if (width / height > 1.6 && width / height < 1.9) {
@@ -87,6 +91,8 @@ function getImage(page, filename) {
         const dataURL = newCanvas.toDataURL('image/png', 1);
         // console.log('第二页', dataURL);
         resolve && resolve(dataURL);
+      } else {
+        reject && reject('图片不符合要求');
       }
     });
   });
@@ -265,17 +271,35 @@ async function getPage2(pdf, pdfJS, pageNumber) {
   const page2 = await pdf.getPage(pageNumber);
   const operators = await page2.getOperatorList();
 
-  const dataURL = await new Promise((resolve, reject) => {
-    const rawImgOperator = operators.fnArray
-      .map((f, index) => (f === pdfJS.OPS.paintImageXObject ? index : null))
-      .filter((n) => n !== null);
-    const filename = operators.argsArray[rawImgOperator[1]][0];
-    rawImgOperator.forEach((index) => {
-      const filename = operators.argsArray[index][0];
-      getImage(page2, filename).then((dataURL) => {
-        resolve && resolve(dataURL);
-      });
-    });
+  const dataURL = await new Promise(async (resolve, reject) => {
+    try {
+      const rawImgOperator = operators.fnArray
+        .map((f, index) => (f === pdfJS.OPS.paintImageXObject ? index : null))
+        .filter((n) => n !== null);
+      const filename = operators.argsArray[rawImgOperator[1]][0];
+      for (let index = 0; index < rawImgOperator.length; index++) {
+        console.log('index', index);
+        const element = rawImgOperator[index];
+        try {
+          const dataURL = await getImage(page2, filename);
+          console.log('dataURL', dataURL);
+          resolve && resolve(dataURL);
+          return dataURL;
+        } catch (error) {
+          console.log('error', error);
+        }
+      }
+      reject && reject('所有的图片都不符合要求');
+    } catch (error) {
+      console.log('getPage2 error', error);
+    }
+
+    // rawImgOperator.forEach((index) => {
+    //   const filename = operators.argsArray[index][0];
+    //   getImage(page2, filename).then((dataURL) => {
+    //     resolve && resolve(dataURL);
+    //   });
+    // });
   });
 
   return dataURL;
@@ -387,6 +411,11 @@ async function loadFromFile(url) {
 //   try {
 //     let { pdf, pdfJS, pageNumber } = await LoadPdf(
 //       'look1.pdf',
+// async function Run() {
+//   // 加载对应的PDF文件
+//   try {
+//     let { pdf, pdfJS, pageNumber } = await LoadPdf(
+//       'look5.pdf',
 //       window.location.origin + '/dist/pdf.worker.js'
 //     );
 //     // 获取页码
@@ -406,6 +435,7 @@ async function loadFromFile(url) {
 //     }
 //   } catch (error) {
 //     console.log('PDF文件加载失败');
+//     console.log('PDF文件加载失败', error);
 //     // 这儿执行你要执行的代码 针对123
 //   }
 // }
