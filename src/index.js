@@ -42,6 +42,8 @@ async function LoadPdf(url, wokerUrl) {
   };
 }
 
+function getImageNew(params) {}
+
 function getImage(page, filename) {
   return new Promise((resolve, reject) => {
     let timeout = setTimeout(() => {
@@ -89,7 +91,7 @@ function getImage(page, filename) {
         );
 
         const dataURL = newCanvas.toDataURL('image/png', 1);
-        // console.log('第二页', dataURL);
+        console.log('第二页', dataURL);
         resolve && resolve(dataURL);
       } else {
         reject && reject('图片不符合要求');
@@ -273,22 +275,81 @@ async function getPage2(pdf, pdfJS, pageNumber) {
 
   const dataURL = await new Promise(async (resolve, reject) => {
     try {
-      const rawImgOperator = operators.fnArray
-        .map((f, index) => (f === pdfJS.OPS.paintImageXObject ? index : null))
-        .filter((n) => n !== null);
-      const filename = operators.argsArray[rawImgOperator[1]][0];
-      for (let index = 0; index < rawImgOperator.length; index++) {
-        console.log('index', index);
-        const element = rawImgOperator[index];
+      const scale = 1.5;
+      const viewport = page2.getViewport({ scale });
+      const imageList = await page2
+        .getOperatorList()
+        .then((opList) => {
+          const svgGfx = new pdfJS.SVGGraphics(page2.commonObjs, page2.objs);
+          return svgGfx.getSVG(opList, viewport);
+        })
+        .then((svg) => {
+          function element_list(el) {
+            for (var i = 0; i < el.children.length; i++) {
+              const element = el.children[i];
+              // nodeName: "svg:image"
+              if (element.nodeName === 'svg:image') {
+                const getImage = element.getAttribute('xlink:href');
+                imageList.push(getImage);
+                console.log(getImage);
+              }
+              element_list(el.children[i]);
+            }
+          }
+          console.log(svg);
+          const imageList = [];
+          element_list(svg, 0);
+          console.log(imageList);
+          return imageList;
+        });
+
+      function getMeta(url) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.src = url;
+          img.onload = function () {
+            resolve({ width: this.width, height: this.height });
+          };
+        });
+      }
+
+      for (let i = 0; i < imageList.length; i++) {
         try {
-          const dataURL = await getImage(page2, filename);
-          console.log('dataURL', dataURL);
-          resolve && resolve(dataURL);
-          return dataURL;
+          const dataURL = await getMeta(imageList[i]).then(
+            ({ width, height }) => {
+              console.log(width, height);
+              if (width / height > 1.6 && width / height < 1.9) {
+                resolve && resolve(imageList[i]);
+                return imageList[i];
+              }
+            }
+          );
+
+          if (dataURL) {
+            return dataURL;
+          }
         } catch (error) {
-          console.log('error', error);
+          console.log('errormm', error);
         }
       }
+
+      // const rawImgOperator = operators.fnArray
+      //   .map((f, index) => (f === pdfJS.OPS.paintImageXObject ? index : null))
+      //   .filter((n) => n !== null);
+      // const filename = operators.argsArray[rawImgOperator[1]][0];
+      // for (let index = 0; index < rawImgOperator.length; index++) {
+      //   console.log('index', index);
+      //   const element = rawImgOperator[index];
+      //   try {
+      //     const dataURL = await getImage(page2, filename);
+      //     console.log('dataURL', dataURL);
+      //     resolve && resolve(dataURL);
+      //     return dataURL;
+      //   } catch (error) {
+      //     console.log('error', error);
+      //   }
+      // }
+
       reject && reject('所有的图片都不符合要求');
     } catch (error) {
       console.log('getPage2 error', error);
@@ -378,34 +439,34 @@ function previewFile() {
   });
 }
 
-previewFile();
-async function loadFromFile(url) {
-  // // 加载对应的PDF文件
-  try {
-    let { pdf, pdfJS, pageNumber } = await LoadPdf(
-      url,
-      window.location.origin + '/dist/pdf.worker.js'
-    );
-    // 获取页码
-    console.log('pageNumber', pageNumber);
-    if (pageNumber == 1) {
-      const page2Data = await getPage2(pdf, pdfJS, 1);
-      console.log('page2Data', page2Data);
-      const page3Data = await getPage3(pdf);
-      console.log('page3Data', page3Data);
-      PrintImage([page2Data, page3Data]);
-    } else {
-      const page1Data = await getPage1(pdf, pdfJS);
-      console.log('page1Data', page1Data);
-      const page2Data = await getPage2(pdf, pdfJS, 2);
-      console.log('page2Data', page2Data);
-      PrintImage([page2Data, page1Data]);
-    }
-  } catch (error) {
-    console.log('PDF文件加载失败');
-    // 这儿执行你要执行的代码 针对123
-  }
-}
+// previewFile();
+// async function loadFromFile(url) {
+//   // // 加载对应的PDF文件
+//   try {
+//     let { pdf, pdfJS, pageNumber } = await LoadPdf(
+//       url,
+//       window.location.origin + '/dist/pdf.worker.js'
+//     );
+//     // 获取页码
+//     console.log('pageNumber', pageNumber);
+//     if (pageNumber == 1) {
+//       const page2Data = await getPage2(pdf, pdfJS, 1);
+//       console.log('page2Data', page2Data);
+//       const page3Data = await getPage3(pdf);
+//       console.log('page3Data', page3Data);
+//       PrintImage([page2Data, page3Data]);
+//     } else {
+//       const page1Data = await getPage1(pdf, pdfJS);
+//       console.log('page1Data', page1Data);
+//       const page2Data = await getPage2(pdf, pdfJS, 2);
+//       console.log('page2Data', page2Data);
+//       PrintImage([page2Data, page1Data]);
+//     }
+//   } catch (error) {
+//     console.log('PDF文件加载失败');
+//     // 这儿执行你要执行的代码 针对123
+//   }
+// }
 // async function Run() {
 //   // // 加载对应的PDF文件
 //   try {
