@@ -2,7 +2,7 @@ import { Utils } from './utils';
 import * as tf from '@tensorflow/tfjs';
 // 使用 require 引入 tf
 
-const MOBILENET_MODEL_PATH = 'm2/model.json';
+const MOBILENET_MODEL_PATH = 'm4/model.json';
 
 const PrintImage = async (array) => {
   if (typeof window !== 'undefined') {
@@ -16,24 +16,24 @@ const PrintImage = async (array) => {
   }
 };
 
-async function LoadPdf(url, wokerUrl) {
+async function LoadPdf(url, wokerUrl, mobilenetUrl) {
   let printList = [];
   var pdfJS = window['pdfjs-dist/build/pdf'];
   pdfJS.GlobalWorkerOptions.workerSrc = wokerUrl;
   const pdf = await pdfJS.getDocument(url).promise;
-  const mobilenet = await tf.loadGraphModel(MOBILENET_MODEL_PATH);
+  const mobilenet = await tf.loadGraphModel(mobilenetUrl);
 
-  const opencvUtils = await new Promise((resolve, reject) => {
-    if (window.opencvUtilsFlag) {
-      resolve && resolve();
-    } else {
-      let utils = new Utils('errorMessage');
-      utils.loadOpenCv(() => {
-        resolve && resolve(utils);
-        window.opencvUtilsFlag = true;
-      });
-    }
-  });
+  // const opencvUtils = await new Promise((resolve, reject) => {
+  //   if (window.opencvUtilsFlag) {
+  //     resolve && resolve();
+  //   } else {
+  //     let utils = new Utils('errorMessage');
+  //     utils.loadOpenCv(() => {
+  //       resolve && resolve(utils);
+  //       window.opencvUtilsFlag = true;
+  //     });
+  //   }
+  // });
 
   // console.log('opencvUtils', opencvUtils);
 
@@ -72,149 +72,6 @@ async function getImage(pdf, pageNumber) {
   const pagesData = await Promise.all(pagePromises);
   // imageList.push(...pagesData);
   return pagesData;
-}
-
-async function getPage2(pdf, pdfJS, pageNumber) {
-  const page2 = await pdf.getPage(pageNumber);
-  const operators = await page2.getOperatorList();
-
-  const dataURL = await new Promise(async (resolve, reject) => {
-    try {
-      const scale = 1.5;
-      const viewport = page2.getViewport({ scale });
-      const imageList = await page2
-        .getOperatorList()
-        .then((opList) => {
-          const svgGfx = new pdfJS.SVGGraphics(page2.commonObjs, page2.objs);
-          return svgGfx.getSVG(opList, viewport);
-        })
-        .then((svg) => {
-          function element_list(el) {
-            for (var i = 0; i < el.children.length; i++) {
-              const element = el.children[i];
-              // nodeName: "svg:image"
-              if (element.nodeName === 'svg:image') {
-                const getImage = element.getAttribute('xlink:href');
-                imageList.push(getImage);
-                console.log(getImage);
-              }
-              element_list(el.children[i]);
-            }
-          }
-          console.log(svg);
-          const imageList = [];
-          element_list(svg, 0);
-          console.log(imageList);
-          return imageList;
-        });
-
-      function getMeta(url) {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.src = url;
-          img.onload = function () {
-            resolve({ width: this.width, height: this.height });
-          };
-        });
-      }
-
-      for (let i = 0; i < imageList.length; i++) {
-        try {
-          const dataURL = await getMeta(imageList[i]).then(
-            ({ width, height }) => {
-              console.log(width, height);
-              if (width / height > 1.6 && width / height < 1.9) {
-                resolve && resolve(imageList[i]);
-                return imageList[i];
-              }
-            }
-          );
-
-          if (dataURL) {
-            return dataURL;
-          }
-        } catch (error) {
-          console.log('errormm', error);
-        }
-      }
-
-      // const rawImgOperator = operators.fnArray
-      //   .map((f, index) => (f === pdfJS.OPS.paintImageXObject ? index : null))
-      //   .filter((n) => n !== null);
-      // const filename = operators.argsArray[rawImgOperator[1]][0];
-      // for (let index = 0; index < rawImgOperator.length; index++) {
-      //   console.log('index', index);
-      //   const element = rawImgOperator[index];
-      //   try {
-      //     const dataURL = await getImage(page2, filename);
-      //     console.log('dataURL', dataURL);
-      //     resolve && resolve(dataURL);
-      //     return dataURL;
-      //   } catch (error) {
-      //     console.log('error', error);
-      //   }
-      // }
-
-      reject && reject('所有的图片都不符合要求');
-    } catch (error) {
-      console.log('getPage2 error', error);
-    }
-
-    // rawImgOperator.forEach((index) => {
-    //   const filename = operators.argsArray[index][0];
-    //   getImage(page2, filename).then((dataURL) => {
-    //     resolve && resolve(dataURL);
-    //   });
-    // });
-  });
-
-  return dataURL;
-}
-
-async function getPage3(pdf) {
-  const page = await pdf.getPage(1);
-  const scale = 4;
-  const viewport = page.getViewport({
-    scale,
-  });
-  const canvas = document.createElement('CANVAS');
-  const canvasContext = canvas.getContext('2d');
-  canvas.height = viewport.height;
-  canvas.width = viewport.width;
-  // canvas.id = 'canvasInput';
-  // canvas.style.display = 'none';
-  // document.body.appendChild(canvas);
-  const renderContext = {
-    canvasContext,
-    viewport,
-  };
-
-  const dataURL = await new Promise((resolve, reject) => {
-    page.render(renderContext).promise.then((data) => {
-      const newCanvas = document.createElement('canvas');
-      newCanvas.width = 560 * scale;
-      newCanvas.height = 270 * scale;
-
-      const newCanvasContext = newCanvas.getContext('2d');
-      newCanvasContext.drawImage(
-        canvas,
-        20 * scale,
-        410 * scale,
-        550 * scale,
-        270 * scale,
-        0,
-        0,
-        550 * scale,
-        270 * scale
-      );
-
-      const dataURL = newCanvas.toDataURL('image/png', 1);
-      resolve && resolve(dataURL);
-      return dataURL;
-    });
-  });
-
-  return dataURL;
 }
 
 // 裁剪图片
@@ -269,6 +126,67 @@ function handleImageList(imageList, resultList) {
     out.push(handle);
   }
   return out;
+}
+
+// 格式化baes64图片, 输出图片宽高比例1.4的图片，不足的地方用白色填充，如果图片宽高比例大于1，旋转90度后不足的地方用白色填充
+function formatImage(base64, targetAspectRatio = 1.4) {
+  return new Promise((resolve, reject) => {
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      const { width, height } = tempImg;
+      // Calculate the aspect ratio of the original image
+      const originalAspectRatio = width / height;
+
+      // Create a canvas element
+      const canvas = document.createElement('canvas');
+
+      // Set the width and height of the canvas based on the aspect ratio
+      if (originalAspectRatio > targetAspectRatio) {
+        // Original image has a wider aspect ratio, so set the width of the canvas and calculate the height based on the target aspect ratio
+        canvas.width = width;
+        canvas.height = width / targetAspectRatio;
+      } else {
+        // Original image has a taller aspect ratio, so set the height of the canvas and calculate the width based on the target aspect ratio
+        canvas.width = height * targetAspectRatio;
+        canvas.height = height;
+      }
+
+      // Get the context of the canvas
+      const ctx = canvas.getContext('2d');
+
+      // Set the background color of the canvas to white
+      ctx.fillStyle = '#fff';
+      // Fill the canvas with white
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Calculate the x and y positions of the image on the canvas
+      let x, y;
+      if (originalAspectRatio > targetAspectRatio) {
+        // Original image has a wider aspect ratio, so center the image vertically
+        x = 0;
+        y = (canvas.height - height) / 2;
+      } else {
+        // Original image has a taller aspect ratio, so center the image horizontally
+        x = (canvas.width - width) / 2;
+        y = 0;
+      }
+
+      // Draw the image on the canvas
+      ctx.drawImage(tempImg, x, y);
+
+      // Rotate the canvas by 90 degrees if the original aspect ratio is greater than 1
+      if (originalAspectRatio > 1) {
+        ctx.rotate(Math.PI / 2);
+      }
+
+      // Convert the canvas to a base64 image
+      const formattedBase64Image = canvas.toDataURL();
+
+      // Return the formatted base64 image
+      resolve(formattedBase64Image);
+    };
+    tempImg.src = base64;
+  });
 }
 
 async function tensorflowImage(model, image) {
@@ -451,7 +369,8 @@ async function loadFromFile(url) {
   try {
     let { pdf, pdfJS, pageNumber, mobilenet } = await LoadPdf(
       url,
-      window.location.origin + '/dist/pdf.worker.js'
+      window.location.origin + '/dist/pdf.worker.js',
+      MOBILENET_MODEL_PATH
     );
     // 获取页码
     console.log('pageNumber', pageNumber);
@@ -473,16 +392,22 @@ async function loadFromFile(url) {
 
     console.log('outList', outList);
 
-    const printList = []
+    const printList = [];
     for (let i = 0; i < outList.length; i++) {
       const element = outList[i];
       if (element.length > 0) {
-        printList.push(element)
+        printList.push(element);
       }
     }
-    PrintImage(printList);
+
+    // 格式化打印
+    const formatPrintList = await Promise.all(
+      printList.map((item) => formatImage(item, 1.6))
+    );
+    console.log('formatPrintList', formatPrintList);
+    PrintImage(formatPrintList);
   } catch (error) {
-    console.log('PDF文件加载失败');
+    console.log('PDF文件加载失败', error);
     // 这儿执行你要执行的代码 针对123
   }
 }
@@ -524,6 +449,7 @@ async function loadFromFile(url) {
 
 window.LoadPdf = LoadPdf;
 window.PrintImage = PrintImage;
-// window.getPage1 = getPage1;
-// window.getPage2 = getPage2;
-// window.getPage3 = getPage3;
+window.formatImage = formatImage;
+window.tensorflowImage = tensorflowImage;
+window.handleImageList = handleImageList;
+window.getImage = getImage;
