@@ -2,7 +2,7 @@ import { Utils } from './utils';
 import * as tf from '@tensorflow/tfjs';
 // 使用 require 引入 tf
 
-const MOBILENET_MODEL_PATH = 'm4/model.json';
+const MOBILENET_MODEL_PATH = 'm3/model.json';
 
 const PrintImage = async (array) => {
   if (typeof window !== 'undefined') {
@@ -45,34 +45,58 @@ async function LoadPdf(url, wokerUrl, mobilenetUrl) {
   };
 }
 
+// async function getImage(pdf, pageNumber) {
+//   const imageList = [];
+
+//   const getPageData = async (page) => {
+//     return new Promise(async (resolve, reject) => {
+//       const scale = 2;
+//       const viewport = page.getViewport({ scale });
+//       const canvas = document.createElement('CANVAS');
+//       canvas.height = viewport.height;
+//       canvas.width = viewport.width;
+//       const canvasContext = canvas.getContext('2d');
+//       const renderContext = { canvasContext, viewport };
+//       await page.render(renderContext).promise;
+//       const dataURL = canvas.toDataURL('image/jpeg', 1.0);
+//       const img = new Image();
+//       img.onload = () => {
+//         resolve(img);
+//       };
+//       img.src = dataURL;
+//     });
+//   };
+
+//   const pagePromises = [];
+//   for (let i = 1; i <= pageNumber; i++) {
+//     const page = await pdf.getPage(i);
+//     pagePromises.push(getPageData(page));
+//   }
+
+//   const pagesData = await Promise.all(pagePromises);
+//   // imageList.push(...pagesData);
+//   return pagesData;
+// }
+
 async function getImage(pdf, pageNumber) {
-  const imageList = [];
+  const pagesData = await Promise.all(
+    Array.from(Array(pageNumber).keys()).map(async (i) => {
+      const canvas = document.createElement('CANVAS');
+      const canvasContext = canvas.getContext('2d');
+      const scale = 2;
+      const page = await pdf.getPage(i + 1);
+      const viewport = page.getViewport({ scale });
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      const renderContext = { canvasContext, viewport };
+      await page.render(renderContext).promise;
+      return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+    }),
+  );
 
-  const getPageData = async (page) => {
-    const scale = 4;
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement('CANVAS');
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
-    const canvasContext = canvas.getContext('2d');
-    const renderContext = { canvasContext, viewport };
-    await page.render(renderContext).promise;
-    const dataURL = canvas.toDataURL('image/jpeg', 1.0);
-    const img = new Image();
-    img.src = dataURL;
-    return img;
-  };
-
-  const pagePromises = [];
-  for (let i = 1; i <= pageNumber; i++) {
-    const page = await pdf.getPage(i);
-    pagePromises.push(getPageData(page));
-  }
-
-  const pagesData = await Promise.all(pagePromises);
-  // imageList.push(...pagesData);
-  return pagesData;
+  return pagesData.map((blob) => URL.createObjectURL(blob));
 }
+
 
 // 裁剪图片
 function cutImage(image, minY, minX, maxY, maxX) {
@@ -98,13 +122,13 @@ function cutImage(image, minY, minX, maxY, maxX) {
 }
 
 // 处理图片
-function handleImage(image, results) {
+function handleImage(results) {
   let out = [];
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
 
-    const { minY, minX, maxY, maxX } = result;
+    const { image, minY, minX, maxY, maxX } = result;
 
     let cut = cutImage(image, minY, minX, maxY, maxX);
 
@@ -115,13 +139,12 @@ function handleImage(image, results) {
 }
 
 // 处理图片列表
-function handleImageList(imageList, resultList) {
+function handleImageList(resultList) {
   let out = [];
   for (let i = 0; i < resultList.length; i++) {
     const result = resultList[i];
-    const image = imageList[i];
 
-    let handle = handleImage(image, result);
+    let handle = handleImage(result);
 
     out.push(handle);
   }
@@ -189,29 +212,70 @@ function formatImage(base64, targetAspectRatio = 1.4) {
   });
 }
 
-async function tensorflowImage(model, image) {
-  // console.log('tensorflowImage', dataURL);
-  // const image = document.createElement('img');
-  // image.src = dataURL;
+async function loadImageFromURL(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve(img);
+    };
+    img.onerror = (err) => {
+      reject(err);
+    };
+    img.src = url;
+  });
+}
+
+async function tensorflowImage(model, imageBlobURL) {
+  const image = await loadImageFromURL(imageBlobURL);
   const pixels = tf.browser.fromPixels(image);
 
   let data = tf.cast(pixels.reshape([1, ...pixels.shape]), 'float32');
   // // let data = tf.cast(pixels.reshape([1, ...pixels.shape]), 'int32');
   // // let data = tf.cast(pixels.reshape([1, ...pixels.shape]), 'int32');
-
-  console.time('predict2');
+  console.time('识别模型' + imageBlobURL);
   const res = await model.executeAsync(data);
-  console.timeEnd('predict2');
-  // console.log('res', res);
-  const scores = res[0].dataSync();
-  const boxes = res[1].dataSync();
+  
+
+  // 获取数组元素 res 中 元素的 rankType 为 2 和 为 3 的下标
+  const rankTypeIndex = res.reduce((acc, cur, index) => {
+    if (cur.rankType == 2) {
+      acc[0] = index;
+    } else if (cur.rankType == 3) {
+      acc[1] = index;
+    }
+    return acc;
+  }, []);
+  // ranktype 为 3
+  const scoresRes = res[rankTypeIndex[1]]
+  const scores = scoresRes.dataSync();
+  // rankStype 为 2
+  const boxesRes = res[rankTypeIndex[0]]
+  const boxes = boxesRes.dataSync();
+
   // console.log('boxes', boxes);
   // console.log('scores', scores);
 
+  // 递归遍历 res 中的 shape 数组，找到里面两个相乘等于 res 中 size 的数的下标
+  const findIndex = (shape, size) => {
+    let index = 0;
+    for (let i = 0; i < shape.length; i++) {
+      for (let j = i + 1; j < shape.length; j++) {
+        if (shape[i] * shape[j] === size) {
+          index = [i, j];
+          break;
+        }
+      }
+    }
+    return index;
+  }
+
+  const scoresIndex = findIndex(scoresRes.shape, scoresRes.size);
+  const boxesIndex = findIndex(boxesRes.shape, boxesRes.size);
+
   const [maxScores, classes] = calculateMaxScores(
     scores,
-    res[0].shape[1],
-    res[0].shape[2]
+    scoresRes.shape[scoresIndex[0]],
+    scoresRes.shape[scoresIndex[1]],
   );
 
   // console.log('maxScores, classes', maxScores, classes);
@@ -222,8 +286,9 @@ async function tensorflowImage(model, image) {
     tf.setBackend('cpu');
   }
   const indexTensor = tf.tidy(() => {
-    const boxes2 = tf.tensor2d(boxes, [res[1].shape[0], res[1].shape[1]]);
-    return tf.image.nonMaxSuppression(boxes2, maxScores, 20, 0.5, 0.5);
+    const boxes2 = tf.tensor2d(boxes, [boxesRes.shape[boxesIndex[0]], boxesRes.shape[boxesIndex[1]]]);
+    // const boxes2 = tf.tensor2d(boxes, [res[1].shape[0], res[1].shape[1]]);
+    return tf.image.nonMaxSuppression(boxes2, maxScores, 20, 0.5, 0.4);
   });
 
   const indexes = indexTensor.dataSync();
@@ -235,6 +300,7 @@ async function tensorflowImage(model, image) {
   }
 
   const result = buildDetectedObjects(
+    image,
     image.width,
     image.height,
     boxes,
@@ -242,7 +308,7 @@ async function tensorflowImage(model, image) {
     indexes,
     classes
   );
-  console.log('result', result);
+  console.log('result', result, imageBlobURL);
 
   return result;
 
@@ -272,15 +338,13 @@ async function tensorflowImage(model, image) {
   // console.timeEnd('predict2');
 }
 
-function buildDetectedObjects(width, height, boxes, scores, indexes, classes) {
+function buildDetectedObjects(image, width, height, boxes, scores, indexes, classes) {
   console.log(
     'buildDetectedObjects',
+    image,
     width,
     height,
-    boxes,
-    scores,
     indexes,
-    classes
   );
   const count = indexes.length;
   const objects = [];
@@ -312,6 +376,7 @@ function buildDetectedObjects(width, height, boxes, scores, indexes, classes) {
       minY,
       maxX,
       maxY,
+      image
     });
   }
   return objects;
@@ -335,82 +400,82 @@ function calculateMaxScores(scores, numBoxes, numClasses) {
   return [maxes, classes];
 }
 
-function previewFile() {
-  const input = document.querySelector('input');
+// function previewFile() {
+//   const input = document.querySelector('input');
 
-  input.addEventListener('change', () => {
-    console.log('???');
-    // const preview = document.querySelector('img');
-    const file = document.querySelector('input[type=file]').files[0];
-    const reader = new FileReader();
+//   input.addEventListener('change', () => {
+//     console.log('???');
+//     // const preview = document.querySelector('img');
+//     const file = document.querySelector('input[type=file]').files[0];
+//     const reader = new FileReader();
 
-    reader.addEventListener(
-      'load',
-      (e) => {
-        // convert image file to base64 string
-        // preview.src = reader.result;
-        var myData = new Uint8Array(e.target.result);
-        var docInitParams = { data: myData };
-        console.log('reader.result', docInitParams);
-        loadFromFile(docInitParams);
-      },
-      false
-    );
+//     reader.addEventListener(
+//       'load',
+//       (e) => {
+//         // convert image file to base64 string
+//         // preview.src = reader.result;
+//         var myData = new Uint8Array(e.target.result);
+//         var docInitParams = { data: myData };
+//         console.log('reader.result', docInitParams);
+//         loadFromFile(docInitParams);
+//       },
+//       false
+//     );
 
-    if (file) {
-      reader.readAsArrayBuffer(file);
-    }
-  });
-}
+//     if (file) {
+//       reader.readAsArrayBuffer(file);
+//     }
+//   });
+// }
 
-previewFile();
-async function loadFromFile(url) {
-  // // 加载对应的PDF文件
-  try {
-    let { pdf, pdfJS, pageNumber, mobilenet } = await LoadPdf(
-      url,
-      window.location.origin + '/dist/pdf.worker.js',
-      MOBILENET_MODEL_PATH
-    );
-    // 获取页码
-    console.log('pageNumber', pageNumber);
+// previewFile();
+// async function loadFromFile(url) {
+//   // // 加载对应的PDF文件
+//   try {
+//     let { pdf, pdfJS, pageNumber, mobilenet } = await LoadPdf(
+//       url,
+//       window.location.origin + '/dist/pdf.worker.js',
+//       MOBILENET_MODEL_PATH
+//     );
+//     // 获取页码
+//     console.log('pageNumber', pageNumber);
 
-    // 获取所有的图片
-    let imageList = await getImage(pdf, pageNumber);
+//     // 获取所有的图片
+//     let imageList = await getImage(pdf, pageNumber);
 
-    console.log('imageList', imageList);
+//     console.log('imageList', imageList);
 
-    // 识别所有图片
-    let tensorflowResultPromise = await Promise.all(
-      imageList.map((item) => tensorflowImage(mobilenet, item))
-    );
+//     // 识别所有图片
+//     let tensorflowResultPromise = await Promise.all(
+//       imageList.map((item) => tensorflowImage(mobilenet, item))
+//     );
 
-    console.log('tensorflowResultPromise', tensorflowResultPromise);
+//     console.log('tensorflowResultPromise', tensorflowResultPromise);
 
-    // 处理所有图片
-    const outList = handleImageList(imageList, tensorflowResultPromise);
+//     // 处理所有图片
+//     const outList = handleImageList(tensorflowResultPromise);
 
-    console.log('outList', outList);
+//     console.log('outList', outList);
 
-    const printList = [];
-    for (let i = 0; i < outList.length; i++) {
-      const element = outList[i];
-      if (element.length > 0) {
-        printList.push(element);
-      }
-    }
+//     const printList = [];
+//     for (let i = 0; i < outList.length; i++) {
+//       const element = outList[i];
+//       if (element.length > 0) {
+//         printList.push(element);
+//       }
+//     }
 
-    // 格式化打印
-    const formatPrintList = await Promise.all(
-      printList.map((item) => formatImage(item, 1.6))
-    );
-    console.log('formatPrintList', formatPrintList);
-    PrintImage(formatPrintList);
-  } catch (error) {
-    console.log('PDF文件加载失败', error);
-    // 这儿执行你要执行的代码 针对123
-  }
-}
+//     // 格式化打印
+//     const formatPrintList = await Promise.all(
+//       printList.map((item) => formatImage(item, 1.6))
+//     );
+//     console.log('formatPrintList', formatPrintList);
+//     PrintImage(formatPrintList);
+//   } catch (error) {
+//     console.log('PDF文件加载失败', error);
+//     // 这儿执行你要执行的代码 针对123
+//   }
+// }
 
 // async function Run() {
 //   // // 加载对应的PDF文件
