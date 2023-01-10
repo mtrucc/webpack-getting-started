@@ -2,7 +2,7 @@ import { Utils } from './utils';
 import * as tf from '@tensorflow/tfjs';
 // 使用 require 引入 tf
 
-const MOBILENET_MODEL_PATH = 'm5/model.json';
+const MOBILENET_MODEL_PATH = 'm3/model.json';
 
 const PrintImage = async (array) => {
   if (typeof window !== 'undefined') {
@@ -23,7 +23,7 @@ async function LoadPdf(url, wokerUrl, mobilenetUrl) {
   const pdf = await pdfJS.getDocument(url).promise;
   const mobilenet = await tf.loadGraphModel(mobilenetUrl);
   // 读取 dict.txt 文件 用回车分割
-  const labels = await fetch('m5/dict.txt')
+  const labels = await fetch('m3/dict.txt')
     .then((res) => res.text())
     .then((text) => text.split('\n'));
 
@@ -156,10 +156,11 @@ async function getLabelImage(pdf, pdfJS, pageNumber) {
           const dataURL = await getMeta(imageList[i]).then((image) => {
             // console.log(width, height);
             const { width, height } = image;
-            if (width / height > 1.6 && width / height < 1.9) {
+            if (width / height >= 1.5 && width / height < 1.9) {
               resolve && resolve(image);
               return image;
             }
+            return undefined;
           });
 
           if (dataURL) {
@@ -239,7 +240,7 @@ async function handleImage(results, labels, more) {
     const { image, minY, minX, maxY, maxX, class: classIndex } = result;
 
     if (classIndex == labels.findIndex((item) => item == 'Label')) {
-      console.log('发现Label图片', classIndex);
+      console.log('Find Label Image', classIndex);
       const { pdf, pdfJS, pageNumber } = more;
       const labelImage = await getLabelImage(pdf, pdfJS, pageNumber);
       let formatImage = cutLabelImage(labelImage);
@@ -569,7 +570,7 @@ async function loadFromFile(url) {
   try {
     let { pdf, pdfJS, pageNumber, mobilenet, labels } = await LoadPdf(
       url,
-      window.location.origin + '/dist/pdf.worker.js',
+      window.location.origin + '/pdf.worker.js',
       MOBILENET_MODEL_PATH
     );
 
